@@ -1,7 +1,7 @@
 import streamlit as st
 import mysql.connector as a
 import datetime 
-
+import pandas as pd
 
 def connect_db():
     try:
@@ -21,7 +21,7 @@ con = connect_db()
 
 
 st.title("WLECOME TO EXPENSE TRACKER")
-choose = st.radio("Select an option", ["ENTER THE DETAILS","VIEW THE DETAILS","VIEW SUMMARY"])
+choose = st.selectbox("Select an option", ["ENTER THE DETAILS","VIEW THE DETAILS","VIEW SUMMARY"])
 
 if choose == "ENTER THE DETAILS":
     st.subheader("➕ Enter your expense details")
@@ -51,11 +51,13 @@ if choose == "VIEW THE DETAILS":
                 SELECT * FROM expense ORDER BY date DESC
             """)
             rows = cur.fetchall()
-
+                
             for row in rows:
+                date,category,amount = row[0],row[1],row[2]
                 st.subheader(f"Date: {row[0]}")
                 st.write(f"Category: {row[1]}")
                 st.write(f"Amount: ₹{row[2]:.2f}")
+            
 
     except a.Error as e:
             st.error(f"❌ NO ENTRY FOUND {e}")
@@ -64,16 +66,21 @@ if choose == "VIEW THE DETAILS":
 if choose == "VIEW SUMMARY":
     with con.cursor() as cur:
         cur.execute("""
-            SELECT category, SUM(amount)
+            SELECT date, category, SUM(amount) as total_amount
             FROM expense
-            GROUP BY category
-            ORDER BY SUM(amount) DESC
+            GROUP BY date, category
+            ORDER BY date
         """)
         rows = cur.fetchall()
 
-        st.subheader("💸 Summary by Category")
+    # Convert to DataFrame
+    df = pd.DataFrame(rows, columns=["date", "category", "amount"])
 
-        for row in rows:
-            st.write(f"{row[0]}: ₹{row[1]:.2f}")
+    if df.empty:
+        st.warning("No data found.")
+    else:
+        st.subheader("💸 Expense Summary by Date and Category")
 
-    
+        pivot_df = df.pivot(index="date", columns="category", values="amount").fillna(0)
+        st.dataframe(pivot_df)
+        st.bar_chart(pivot_df, height=450, use_container_width=True, stack=True)
